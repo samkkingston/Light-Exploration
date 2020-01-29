@@ -1,0 +1,110 @@
+/*
+  ORIGINAL CODE FROM MARK KRIEGMAN-LED RING EXAMPLE(2014) FROM THE ADAFRUIT_NEOPIXEL LIBRARY
+  AVAILABLE AT https://learn.adafruit.com/adafruit-neopixel-uberguide/arduino-library-installation
+
+  SAM KINGSTON
+  OCAD U 3173258
+  JANUARY 28, 2019
+
+  CODE CONTROLING A 16 LED RING WITH AN ULTRASONIC SENSOR. WHEN FLIPPED,
+  THE RING TURNS ON AND OFF DEPENDING ON ORIENTATION TO CREATE A FIRE-LIKE EFFECT.
+
+*/
+
+#include <FastLED.h>
+
+FASTLED_USING_NAMESPACE
+
+#if defined(FASTLED_VERSION) && (FASTLED_VERSION < 3001000)
+#warning "Requires FastLED 3.1 or later; check github for latest code."
+#endif
+
+//IDENTIFYING INFORMATION ABOUT THE RING
+#define DATA_PIN    3 //INPUT PIN
+#define LED_TYPE    WS2812 //RING MODEL
+#define COLOR_ORDER GRB
+#define NUM_LEDS    16 //NUMBER OF ONBOARD LEDS
+CRGB leds[NUM_LEDS];
+
+//SETTING RANDOM BRIGHTNESS VALUES FOR EACH LED AS TO ACCOMPLISH THE FLICKERING FIRE EFFECT
+#define BRIGHTNESS          random(40, 96) 
+#define FRAMES_PER_SECOND  300
+
+//DECLARING PINS USED
+//int ledPin = (13); // ONBOARD LED ON 13 REMOVED
+int trigPin = (10); // ULTRASONIC TRIG (SEND) PIN ON 10
+int echoPin = (9);// ULTRASONIC ECHO (READ) PIN ON 9
+int ringPin = (3);
+int duration, distance; // Add types 'duration' and 'distance'.
+
+void setup() {
+  
+  //IDENTIFYING INPUT AND OUTPUR PINS FOR SENSORS AND LIGHT
+  //pinMode (ledPin, OUTPUT); // ONBOARD LED ON 13 REMOVED
+  pinMode (trigPin, OUTPUT);
+  pinMode (ringPin, OUTPUT);// Same as above, the TRIG pin will send the ultrasonic wave.
+  pinMode (echoPin, INPUT); // The ECHO pin will recieve the rebounded wave, so it must be an input type.
+
+  // TELL FASTLED ABOUT LED RING CONFIGURATION
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+
+  // set master brightness control
+  FastLED.setBrightness(BRIGHTNESS);
+}
+
+// IDENTIFYING LIGHT PATTERN TO USE. ORIGINAL CODE HAD MULTIPLE CYCLES TO GO THROUGH.
+typedef void (*SimplePatternList[])();
+SimplePatternList gPatterns = { confetti};
+
+//IDENTIFY STARTING LED
+uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
+uint8_t gHue = 1000; // rotating "base color" used by many of the patterns
+
+void loop()
+{
+  
+  //STARTING VALUES FOR EACH I/0 PIN
+  digitalWrite (ledPin, LOW);
+  digitalWrite (trigPin, HIGH);
+  digitalWrite (ringPin, LOW);
+  digitalWrite (trigPin, LOW);
+  digitalWrite (ringPin, LOW);
+  duration = pulseIn(echoPin, HIGH);
+  distance = (duration / 2) / 29.1;
+  
+  // CALL THE PATTERN ONCE
+  gPatterns[gCurrentPatternNumber]();
+  FastLED.show();
+  // REDUCE FRAMERATE
+  
+  FastLED.delay(1000 / FRAMES_PER_SECOND);
+
+  // CYCLE THROUGH DIFFERENT HUES EVERY 20 MILLISECONDS
+  EVERY_N_MILLISECONDS( 20 ) {
+    gHue++;  // CYCLE BASE HUE AS TIME GOES ON
+  }
+
+}
+
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
+
+
+//SAYING WHICH ACTION TO TAKE DPEENDING ON INFORMATION RETRIEVED FROM THE ULTRASONIC SENSOR.
+void confetti()
+{
+  
+  //IF OBJECT IS DETECTED WITHIN 30 CM
+  if (distance <= 30) {
+    // RANDOM SPECKLES WITHIN HUE RANGE
+    fadeToBlackBy( leds, NUM_LEDS, 10);
+    int pos = random16(NUM_LEDS);
+    leds[pos] += CHSV( gHue + random8(64), 100, 255);
+    FastLED.setBrightness(BRIGHTNESS);
+  }
+  
+  //IF OBJECT IS NOT DETECTED WITHIN 30 CM
+  if (distance > 30) {
+    //CONFETTI VOID CONTINUES, ALTHOUGH BRIGHTNESS IS SET TO 0. THIS MEANS ONCE TURNED OVER, LEDS DON'T HAVE TO EACH TURN BACK ON INDIVIDUALLY.
+    FastLED.setBrightness(0);
+  }
+}
